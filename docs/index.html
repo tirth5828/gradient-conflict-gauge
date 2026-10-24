@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gradient Conflict: Tasks or Coordinates? — DeepMath 2026</title>
+<meta name="description" content="Rescaling the layers of a ReLU network leaves the function and the whole gradient-descent trajectory unchanged, yet can flip the sign of 'gradient conflict'. It can, but rarely does in practice: the step size moves the conflict rate far more.">
+<meta name="author" content="Tirth Joshi">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="How Much of “Gradient Conflict” Is Due to the Tasks, and How Much to the Coordinates?">
+<meta property="og:description" content="A change of ruler can flip the conflict sign, but rarely does. The step size moves the conflict rate by 74 points: at large steps, conflict hides behind one Hessian direction.">
+<meta property="og:image" content="https://tirth5828.github.io/gradient-conflict-gauge/assets/figs/hero.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,650;0,9..144,700;1,9..144,500;1,9..144,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false}],ignoredTags:['script','noscript','style','textarea','pre','code']})"></script>
+
+<style>
+:root{
+  --paper:#f6f2e9; --card:#fbf8f2; --ink:#172030; --body:#2f3846; --muted:#5d6675; --line:#e2dccf;
+  --t1:#2a66b0; --t2:#e0782b; --agree:#2b8656; --conf:#c8392d; --gold:#a87506;
+  --agree-bg:#ebf3ec; --conf-bg:#f8ebe7; --gold-bg:#f6efdd;
+  --maxw:920px;
+  --display:Fraunces, Georgia, serif; --serif:"Source Serif 4", Georgia, serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#14171d; --card:#1b1f27; --ink:#eef0f3; --body:#c9ced6; --muted:#8f97a4; --line:#2b313b;
+    --t1:#79a8e6; --t2:#f0a062; --agree:#6cc496; --conf:#ef7f72; --gold:#e0b553;
+    --agree-bg:#16261d; --conf-bg:#2c1a18; --gold-bg:#2a2314;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:70px}
+body{margin:0; background:var(--paper); color:var(--body);
+  font:400 18.5px/1.62 var(--serif); font-optical-sizing:auto; -webkit-font-smoothing:antialiased}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 22px}
+a{color:var(--t1); text-decoration:none} a:hover{text-decoration:underline}
+h1,h2,h3{color:var(--ink); margin:0; font-family:var(--display); font-optical-sizing:auto}
+h2{font-size:clamp(25px,3.4vw,32px); font-weight:650; line-height:1.18; letter-spacing:-.008em; margin:0 0 14px}
+h3{font-size:20px; font-weight:650; margin:26px 0 6px}
+p{margin:0 0 14px} b,strong{color:var(--ink); font-weight:600}
+.bad{color:var(--conf)} .gd{color:var(--agree)} .gold{color:var(--gold)}
+
+/* nav */
+nav{position:sticky; top:0; z-index:50; background:color-mix(in srgb, var(--paper) 90%, transparent);
+  backdrop-filter:saturate(160%) blur(10px); border-bottom:1px solid var(--line)}
+nav .wrap{display:flex; align-items:center; gap:20px; height:54px; overflow-x:auto}
+nav .brand{font-family:var(--display); font-weight:650; color:var(--ink); white-space:nowrap}
+nav .links{display:flex; gap:17px; margin-left:auto}
+nav .links a{color:var(--muted); font-size:15px; white-space:nowrap}
+nav .links a:hover{color:var(--t1); text-decoration:none}
+
+/* header */
+header{padding:60px 0 34px}
+.venue{font-size:14px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+h1{font-size:clamp(33px,5.4vw,54px); font-weight:700; line-height:1.06; letter-spacing:-.014em; margin:14px 0 18px}
+h1 em{font-style:italic; font-weight:600; color:var(--conf)}
+.authors{font-size:19px; color:var(--ink); margin:0 0 2px; font-variant-caps:small-caps; letter-spacing:.03em; font-weight:600}
+.affil{font-size:16.5px; color:var(--muted); margin:0 0 24px}
+.btns{display:flex; flex-wrap:wrap; gap:10px}
+.btn{display:inline-flex; align-items:center; font:600 15.5px/1 var(--serif); color:var(--ink);
+  background:var(--card); border:1px solid var(--line); border-radius:4px; padding:11px 16px; transition:.15s}
+.btn:hover{text-decoration:none; border-color:var(--t1); color:var(--t1)}
+.btn.primary{background:var(--ink); border-color:var(--ink); color:var(--paper)}
+.btn.primary:hover{opacity:.86; color:var(--paper)}
+
+.answer{margin:34px 0 0; padding:20px 0 4px; border-top:3px double var(--ink)}
+.answer .k{font-size:13.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--muted)}
+.answer .q{font:italic 500 clamp(22px,3vw,29px)/1.3 var(--display); color:var(--ink); margin-top:8px}
+
+/* sections */
+section{padding:46px 0; border-top:1px solid var(--line)}
+.head{display:flex; align-items:baseline; gap:14px; margin-bottom:6px}
+.num{font:italic 600 46px/0.8 var(--display); color:var(--ink)}
+.num.gold{color:var(--gold)}
+.kick{font-size:14px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--muted)}
+.lead{font-size:20px}
+.small{font-size:16px; color:var(--muted)}
+
+.box{border-left:3px solid var(--ink); background:var(--card); padding:16px 20px; margin:20px 0}
+.box.agree{border-left-color:var(--agree); background:var(--agree-bg)}
+.box.conf{border-left-color:var(--conf); background:var(--conf-bg)}
+.box.gold{border-left-color:var(--gold); background:var(--gold-bg)}
+.box p:last-child{margin-bottom:0}
+
+.stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:16px; margin:22px 0}
+.stat{border-top:2px solid var(--ink); padding-top:10px}
+.stat .v{display:block; font:700 44px/1 var(--display); color:var(--ink); letter-spacing:-.02em; margin-bottom:6px}
+.stat.gd .v{color:var(--agree)} .stat.bad .v{color:var(--conf)} .stat.gold .v{color:var(--gold)}
+.stat p{font-size:15.5px; margin:0; color:var(--muted)}
+
+figure{margin:24px 0}
+figure img{width:100%; height:auto; display:block; background:#f6f2e9; border:1px solid var(--line)}
+figure.narrow img{max-width:380px; margin:0 auto}
+figcaption{font-size:15px; font-style:italic; color:var(--muted); margin-top:9px; line-height:1.5}
+figcaption b{font-style:normal; font-variant-caps:small-caps; letter-spacing:.04em; color:var(--ink)}
+@media (prefers-color-scheme: dark){ figure img{border-color:#3a4150} }
+
+.math{overflow-x:auto; overflow-y:hidden; padding:4px 0; margin:14px 0}
+.katex{font-size:1.06em}
+
+table{border-collapse:collapse; width:100%; font-size:16.5px; font-variant-numeric:lining-nums tabular-nums; margin:18px 0}
+th,td{padding:8px 10px; text-align:right; white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{border-top:2px solid var(--ink); border-bottom:1px solid var(--ink); font-weight:600; color:var(--ink)}
+tbody tr:last-child td{border-bottom:2px solid var(--ink)}
+.tablewrap{overflow-x:auto}
+
+pre{background:var(--card); border:1px solid var(--line); padding:15px 18px; overflow-x:auto;
+  font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--ink); margin:14px 0}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.86em}
+ol.refs{font-size:15.5px; padding-left:24px; color:var(--body)} ol.refs li{margin-bottom:6px}
+footer{padding:34px 0 60px; border-top:1px solid var(--line); color:var(--muted); font-size:15px}
+footer a{color:var(--muted); text-decoration:underline}
+@media (max-width:640px){ section{padding:36px 0} header{padding:40px 0 26px} body{font-size:17.5px} }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <span class="brand">Gradient conflict &amp; coordinates</span>
+    <span class="links">
+      <a href="#what">Symmetry</a>
+      <a href="#condition">Condition</a>
+      <a href="#reach">How often</a>
+      <a href="#why">PCGrad</a>
+      <a href="#result">Result</a>
+      <a href="#twist">Twist</a>
+      <a href="#code">Code</a>
+      <a href="#poster">Poster</a>
+      <a href="#cite">Cite</a>
+    </span>
+  </div>
+</nav>
+
+<header>
+  <div class="wrap">
+    <span class="venue">DeepMath 2026 · Poster</span>
+    <h1>How Much of <em>“Gradient Conflict”</em> Is Due to the Tasks, and How Much to the Coordinates?</h1>
+    <p class="authors">Tirth Joshi</p>
+    <p class="affil">Katz School of Science and Health, Yeshiva University, New York &nbsp;·&nbsp; DeepMath 2026, Columbus, Ohio &nbsp;·&nbsp; poster session Thursday 29 October, 4:00 PM</p>
+    <div class="btns">
+      <a class="btn primary" href="assets/abstract.pdf">Extended abstract (PDF)</a>
+      <a class="btn" href="https://github.com/tirth5828/gradient-conflict-gauge">Code &amp; data</a>
+      <a class="btn" href="assets/poster.pdf">Poster (PDF)</a>
+      <a class="btn" href="#cite">BibTeX</a>
+    </div>
+    <div class="answer">
+      <div class="k">The answer, in one line</div>
+      <div class="q">A change of ruler <span class="bad">can</span> flip the conflict sign, but rarely does. <span class="gd">The step size</span> moves the conflict rate by 74 points: at large steps, conflict hides behind one Hessian direction.</div>
+    </div>
+  </div>
+</header>
+
+<section style="padding-top:20px; border-top:0">
+  <div class="wrap">
+    <figure>
+      <img src="assets/figs/hero.png" alt="Two copies of the same pair of task gradients drawn on a grid. On the left, in the ordinary coordinates, the gradients are 76.4 degrees apart and agree. The grid then stretches: the first layer is shrunk by a factor of four. On the right, in the rescaled coordinates, the same gradients are 113.4 degrees apart and conflict.">
+      <figcaption>Left, the ordinary coordinates: the task gradients agree. Right, after a rescaling that changes nothing about the function or the trajectory: they conflict.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="what">
+  <div class="wrap">
+    <div class="head"><span class="num">1</span><span class="kick">What</span></div>
+    <h2>Rescale the layers: the network and its training run stay identical</h2>
+    <p class="lead">Multi-task learning often treats “gradient conflict”, the sign of the cosine between two tasks’ parameter gradients, as a property of the tasks. But a cosine in parameter space presupposes coordinates, and therefore a metric.</p>
+    <p>Take a bias-free ReLU trunk of depth \(L\ge2\) with task-specific linear heads, trained by full-batch gradient descent on the summed loss with layerwise step sizes \(\eta_l\). For any gauge \(c\) with \(c_l>0\):</p>
+    <div class="math">$$W_l \mapsto c_l W_l,\qquad \eta_l \mapsto c_l^2\,\eta_l,\qquad \textstyle\prod_l c_l = 1 .$$</div>
+    <figure>
+      <img src="assets/figs/net.png" alt="A four-layer network diagram in which each layer's weights are multiplied by a factor c_l, with the factors multiplying to one.">
+    </figure>
+    <p><b>Conjugacy (standard).</b> Positive homogeneity keeps the function, and \(\partial L/\partial(c_lW_l)=c_l^{-1}g_l\) keeps every step, so \(W_l^{(c)}(t)=c_l\,W_l(t)\) for all \(t\). Measured in float64: weights agree to \(4\times10^{-15}\) and losses to \(4\times10^{-16}\).</p>
+    <p>The reported conflict is not invariant. With \(g_i^l=\partial L_i/\partial W_l\) and \(a_l=\langle g_1^l,g_2^l\rangle\),</p>
+    <div class="math">$$\cos_c(g_1,g_2)=\frac{N(c)}{\|g_1\|_c\,\|g_2\|_c},\qquad N(c)=\sum_l c_l^{-2}\,a_l .$$</div>
+    <p>The denominator is positive and depends on the gauge, so at most the <em>sign</em> can be invariant. The question becomes: how much of the conflict comes from the tasks, and how much from the coordinates?</p>
+  </div>
+</section>
+
+<section id="condition">
+  <div class="wrap">
+    <div class="head"><span class="num">2</span><span class="kick">The condition</span></div>
+    <h2>The verdict is coordinate-free \(\iff\) no two layers disagree</h2>
+    <div class="box">
+      <p><b>Observation.</b> <em>At a fixed step, \(\operatorname{sign}\cos_c(g_1,g_2)\) is the same for every gauge \(c\) if and only if no two \(a_l\) have strictly opposite signs.</em></p>
+      <p class="small"><i>Proof.</i> The denominator is positive. \((\Leftarrow)\) \(N(c)=\sum_l c_l^{-2}a_l\) is a positive combination of same-sign terms. \((\Rightarrow)\) If \(a_i&lt;0&lt;a_j\), set \(c_i=\varepsilon\) and \(c_j=\varepsilon^{-1}\): then \(N\to-\infty\) as \(\varepsilon\to0\); swap \(i\) and \(j\) for \(N\to+\infty\). \(\blacksquare\)</p>
+    </div>
+    <p><b>Invariant form.</b> The optimizer-weighted inner product \(\langle g_1,g_2\rangle_\eta=\sum_l\eta_l\,a_l\) is gauge-invariant (flat to \(2\times10^{-17}\)) and, to first order, equals the lookahead affinity of TAG [8]. With a uniform step size the ordinary Euclidean sign equals it.</p>
+    <p>The same argument holds entrywise under the finer neuron-wise symmetry [9, 11]. In every cell, the neuron-wise inner products include both signs.</p>
+    <figure class="narrow">
+      <img src="assets/figs/sign-table.png" alt="Table: layer 1 has a negative inner product, layers 2 to 4 positive. The flipping gauge weights them by 16, 0.43, 0.30 and 0.49.">
+    </figure>
+    <p class="small">In the state in the figure above, layer 1 is the lone negative term. Shrinking \(W_1\) by a factor of 4 weights it by 16, which is enough to flip the sum.</p>
+  </div>
+</section>
+
+<section id="common">
+  <div class="wrap">
+    <div class="head"><span class="num">3</span><span class="kick">How often can it flip?</span></div>
+    <h2>The precondition fails in more than a third of training states</h2>
+    <p>Setup: width-64, depth-4 trunks trained for 400 GD steps at \(\eta=0.05\), with target correlation \(\rho\in\{-0.5,-0.2,0,0.3,0.7\}\) and checkpoints at steps \(0,99,\dots,399\). Each (seed, \(\rho\), checkpoint) is a <em>cell</em>.</p>
+    <div class="stats">
+      <div class="stat bad"><span class="v">37.7%</span><p>of cells have layer inner products \(a_l\) of both signs (95% CI [36.8, 38.5], 1000 seeds)</p></div>
+      <div class="stat"><span class="v">10–68%</span><p>across width, depth, step size, step count and \(\rho\) sweeps; it grows with depth</p></div>
+      <div class="stat"><span class="v">1.99</span><p>median \(\eta\lambda_{\max}\) after step 99: these runs sit at the edge of stability [15]</p></div>
+    </div>
+    <figure>
+      <img src="assets/figs/depth.png" alt="Bar chart: the share of mixed-sign states rises with trunk depth, from 22% at depth 2 to 68% at depth 8.">
+      <figcaption><b>Fig. 2</b> Mixed-sign states by trunk depth \(L\) (50 seeds each, 95% intervals): 22, 28, 41, 50, 62 and 68% at \(L\) = 2, 3, 4, 5, 6 and 8.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="reach">
+  <div class="wrap">
+    <div class="head"><span class="num">4</span><span class="kick">How hard must you stretch?</span></div>
+    <h2>Ordinary conventions rarely get there</h2>
+    <p>The condition says <em>whether</em> some gauge can flip the sign. The practical question is how far you have to stretch the ruler.</p>
+    <div class="stats">
+      <div class="stat"><span class="v">2.0×</span><p>median largest factor of the nearest flipping layerwise gauge (\(\prod_l c_l=1\))</p></div>
+      <div class="stat"><span class="v">3.4×</span><p>median factor of the nearest flip that rescales a single hidden neuron</p></div>
+      <div class="stat gd"><span class="v">≈ 4%</span><p>of states flipped by ordinary layerwise conventions</p></div>
+    </div>
+    <p>Input-layer step sizes anywhere in \([\eta/16,\,16\eta]\) flip 4.0% of states; random factors within \(\sqrt2\) flip 1.2%; directly trained layerwise step decay \(\eta_l=\eta\,d^{\,L-l}\), \(d\in[0.5,0.8]\), departs from the invariant sign in at most 4.3 of 125 states (500 seeds).</p>
+    <figure>
+      <img src="assets/figs/flip.png" alt="Curves showing the share of states whose sign some gauge flips, as a function of the largest allowed factor. The layerwise curve saturates near 38 percent; the single-neuron curve keeps rising toward all states.">
+      <figcaption><b>Fig. 3</b> Share of 12,500 states (500 seeds) flipped by some gauge whose largest factor is at most \(c\), with 95% seed-bootstrap bands. Layerwise gauges saturate at the 38% of mixed-sign states; one neuron’s fan-in and fan-out can eventually flip every state.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="why">
+  <div class="wrap">
+    <div class="head"><span class="num">5</span><span class="kick">Why it matters</span></div>
+    <h2>Multi-task methods act on this quantity, in a metric they never state</h2>
+    <div class="math">$$G=\begin{pmatrix}\|g_1\|^2 &amp; \boxed{\langle g_1,g_2\rangle}\\[2pt] \langle g_2,g_1\rangle &amp; \|g_2\|^2\end{pmatrix}$$</div>
+    <p><b>PCGrad</b> [3] acts on the sign of the boxed entry. <b>CAGrad</b> [4], <b>MGDA</b> [5], <b>Nash-MTL</b> [6] and <b>Aligned-MTL</b> [7] act on all of \(G\). None of them specifies the metric. (Their -UB variants use the shared representation, which the symmetry fixes.)</p>
+    <p>Compensated GD is gauge-equivariant; trunk PCGrad is not. Its update differs from summed GD exactly when the Euclidean cosine is negative, and then by exactly</p>
+    <div class="math">$$\frac{\|u_{\mathrm{PC}}-u_{\mathrm{sum}}\|}{\|u_{\mathrm{sum}}\|}=|\cos\theta| .$$</div>
+    <div class="stats">
+      <div class="stat"><span class="v">1.5%</span><p>median PCGrad correction in states that a \(\sqrt2\) gauge flips (q90 4%; above 10% in under 1% of 12,500 states)</p></div>
+      <div class="stat"><span class="v">1.00</span><p>median final-loss ratio of PCGrad to summed GD, started from the flipped gauge</p></div>
+      <div class="stat"><span class="v">0.99</span><p>the same ratio for a random kick of the same norm</p></div>
+    </div>
+    <div class="box agree"><p><b>No benefit from the flip is detectable.</b> Where the sign is fragile, PCGrad barely moves the step.</p></div>
+  </div>
+</section>
+
+<section id="result">
+  <div class="wrap">
+    <div class="head"><span class="num">6</span><span class="kick">The result</span></div>
+    <h2>The ruler barely moves conflict. The step size moves it <span class="gd">74 points</span>.</h2>
+    <figure>
+      <img src="assets/figs/contrast.png" alt="Three dumbbells on one 0 to 100 percent scale. A change of ruler flips at most 4 percent of states. Changing the step size from 0.1 to 0.01 moves the conflict rate from 9 to 83 percent. At equal summed loss, the same seed and tasks give 0.3 percent versus 90 percent.">
+      <img src="assets/figs/curves.png" alt="Conflict rate over 400 GD steps for step sizes 0.01, 0.02, 0.05 and 0.1. All start near 60 percent; at 0.01 it rises to nearly 100 percent, while larger step sizes fall toward zero, faster the larger the step." style="border-top:0">
+      <figcaption><b>Fig. 4</b> Each knob on one 0–100% scale (top); conflict during training, 200 seeds × 5 values of \(\rho\) (bottom).</figcaption>
+    </figure>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Step size \(\eta\)</th><th>Checkpoint conflict</th><th>At matched summed loss</th></tr></thead>
+        <tbody>
+          <tr><td>0.01</td><td>83%</td><td>90% (2000 steps)</td></tr>
+          <tr><td>0.05</td><td>17% (12–22% across \(\rho\))</td><td>3.6%</td></tr>
+          <tr><td>0.1</td><td>9% (7% divergent runs excluded)</td><td>0.3% (reached by 74% of runs)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>In the matched-loss column the tasks, the seed and the loss reached are the same in every row. What changes is the optimizer’s dynamical regime. Task correlation shows through in the slow regime; near convergence, the shrinking summed gradient pushes the cosine negative whatever the tasks.</p>
+  </div>
+</section>
+
+<section id="twist">
+  <div class="wrap">
+    <div class="head"><span class="num gold">7</span><span class="kick">The twist</span></div>
+    <h2>Conflict hides behind one direction</h2>
+    <p>At the edge of stability [15] (\(\eta\lambda_{\max}\to2\)), 98–99% of \(\|g_1+g_2\|^2\) lies along the oscillating top Hessian eigenvector \(v\) at steps 199–399. Project \(v\) out of both task gradients:</p>
+    <div class="stats">
+      <div class="stat"><span class="v">11%</span><p>conflict as reported (\(\eta=0.05\), 200 seeds, after initialization)</p></div>
+      <div class="stat gd"><span class="v">93%</span><p>conflict with \(v\) removed</p></div>
+      <div class="stat gold"><span class="v">100%</span><p>with two-step-averaged gradients, which cancel the period-2 oscillation without any Hessian</p></div>
+    </div>
+    <figure>
+      <img src="assets/figs/eos.png" alt="Conflict rate over 400 GD steps. As reported it falls from about 65 percent to near zero after step 100; with the top Hessian eigenvector projected out it stays near 95 to 100 percent.">
+      <figcaption><b>Fig. 5</b> \(\eta = 0.05\), 200 seeds, post-init.</figcaption>
+    </figure>
+    <div class="math">$$g_1+g_2\approx s\,v\ \;\Longrightarrow\;\ P_{v^\perp}g_1\approx -P_{v^\perp}g_2$$</div>
+    <div class="box gold"><p>Off \(v\), the anti-alignment is bookkeeping: if the summed gradient is along \(v\), what is left of the two task gradients must cancel. The finding is that the summed gradient collapses onto \(v\) at \(\eta=0.05\) and not at \(\eta=0.01\).</p></div>
+  </div>
+</section>
+
+<section id="scope">
+  <div class="wrap">
+    <p class="kick">Scope and real data</p>
+    <h2>What extends, and what is open</h2>
+    <p><b>MNIST</b> (digit and parity heads; bias-free \(784\times256^3\) trunk; minibatch SGD): conjugacy holds to \(2\times10^{-15}\), and a factor-3 gauge flips 8 of 300 steps. The invariance condition fails in 6% of cells, but conflict stays below 3%: this aligned-task, three-epoch run stays below the edge of stability.</p>
+    <p><b>Biases</b> extend the symmetry exactly. Under <b>LayerNorm</b>, every layerwise rescaling is a symmetry of the function alone, and the sign is <em>more</em> fragile (55% mixed). <b>Adam</b> with \(\varepsilon=0\) admits \(\eta_l\mapsto c_l\eta_l\). <b>Weight decay</b> remains open.</p>
+    <p><b>Prior work.</b> Path-SGD [9] and G-SGD [10] make the <em>trajectory</em> invariant; here the trajectory is fixed and the <em>diagnostic</em> is inspected. GradVac [13], Recon [12] and RotoGrad [14] act on layerwise or representation conflict, which is layerwise- but not neuron-wise-gauge invariant.</p>
+    <div class="box"><p style="font-size:19.5px">Gauge dependence appears insufficient to explain why these methods fail to beat loss summation [1, 2]. The sign is coordinate-defined, but its frequency may primarily reflect optimization.</p></div>
+  </div>
+</section>
+
+<section id="code">
+  <div class="wrap">
+    <p class="kick">Code</p>
+    <h2>Reproduce it</h2>
+    <p>All models and training loops are written in NumPy (float64), so the conjugacy can be checked to machine precision. Torch is used only for Hessian-vector products. Each script writes the JSON file that the numbers on this page come from.</p>
+<pre><code>git clone https://github.com/tirth5828/gradient-conflict-gauge
+cd gradient-conflict-gauge/experiments
+pip install numpy scipy matplotlib torch
+python conjugation_check.py</code></pre>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Script</th><th style="text-align:left">Measures</th></tr></thead>
+        <tbody>
+          <tr><td><code>conjugation_check.py</code></td><td style="text-align:left; white-space:normal">exact conjugacy, sign census, reachability, PCGrad</td></tr>
+          <tr><td><code>census_scale.py</code></td><td style="text-align:left; white-space:normal">sign census over 1000 seeds</td></tr>
+          <tr><td><code>reachability_scale.py</code></td><td style="text-align:left; white-space:normal">nearest flipping gauge, layerwise conventions</td></tr>
+          <tr><td><code>methods_scale.py</code></td><td style="text-align:left; white-space:normal">PCGrad, CAGrad and MGDA under the gauge</td></tr>
+          <tr><td><code>eos_scale.py</code></td><td style="text-align:left; white-space:normal">step-size regimes, edge-of-stability projection</td></tr>
+          <tr><td><code>exploratory.py</code></td><td style="text-align:left; white-space:normal">depth, width, biases, Adam, LayerNorm</td></tr>
+          <tr><td><code>mnist_real.py</code></td><td style="text-align:left; white-space:normal">MNIST digit and parity tasks, minibatch SGD</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="poster">
+  <div class="wrap">
+    <p class="kick">Poster</p>
+    <h2>DeepMath 2026, Columbus</h2>
+    <figure>
+      <a href="assets/poster.pdf"><img src="assets/poster.png" alt="The conference poster. A stretched grid sits in the centre, showing two task gradients that agree on one side and conflict on the other. Seven numbered sections surround it: what, how often, the condition, how hard you must stretch, why it matters, the result and the twist."></a>
+      <figcaption>48 × 36 in. Click for the PDF.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="refs">
+  <div class="wrap">
+    <p class="kick">References</p>
+    <ol class="refs">
+      <li>V. Kurin, A. De Palma, I. Kostrikov, S. Whiteson, and P. K. Mudigonda. In defense of the unitary scalarization for deep multi-task learning. <em>NeurIPS</em>, 2022. <a href="https://arxiv.org/abs/2201.04122">arXiv:2201.04122</a></li>
+      <li>D. Xin, B. Ghorbani, A. Garg, O. Firat, and J. Gilmer. Do current multi-task optimization methods in deep learning even help? <em>NeurIPS</em>, 2022. <a href="https://arxiv.org/abs/2209.11379">arXiv:2209.11379</a></li>
+      <li>T. Yu, S. Kumar, A. Gupta, S. Levine, K. Hausman, and C. Finn. Gradient surgery for multi-task learning. <em>NeurIPS</em>, 2020.</li>
+      <li>B. Liu, X. Liu, X. Jin, P. Stone, and Q. Liu. Conflict-averse gradient descent for multi-task learning. <em>NeurIPS</em>, 2021.</li>
+      <li>O. Sener and V. Koltun. Multi-task learning as multi-objective optimization. <em>NeurIPS</em>, 2018.</li>
+      <li>A. Navon, A. Shamsian, I. Achituve, H. Maron, K. Kawaguchi, G. Chechik, and E. Fetaya. Multi-task learning as a bargaining game. <em>ICML</em>, 2022.</li>
+      <li>D. Senushkin, N. Patakin, A. Kuznetsov, and A. Konushin. Independent component alignment for multi-task learning. <em>CVPR</em>, 2023. <a href="https://arxiv.org/abs/2305.19000">arXiv:2305.19000</a></li>
+      <li>C. Fifty, E. Amid, Z. Zhao, T. Yu, R. Anil, and C. Finn. Efficiently identifying task groupings for multi-task learning. <em>NeurIPS</em>, 2021. <a href="https://arxiv.org/abs/2109.04617">arXiv:2109.04617</a></li>
+      <li>B. Neyshabur, R. Salakhutdinov, and N. Srebro. Path-SGD: Path-normalized optimization in deep neural networks. <em>NIPS</em>, 2015. <a href="https://arxiv.org/abs/1506.02617">arXiv:1506.02617</a></li>
+      <li>Q. Meng, S. Zheng, H. Zhang, W. Chen, Q. Ye, Z.-M. Ma, N. Yu, and T.-Y. Liu. G-SGD: Optimizing ReLU neural networks in its positively scale-invariant space. <em>ICLR</em>, 2019. <a href="https://arxiv.org/abs/1802.03713">arXiv:1802.03713</a></li>
+      <li>L. Dinh, R. Pascanu, S. Bengio, and Y. Bengio. Sharp minima can generalize for deep nets. <em>ICML</em>, 2017. <a href="https://arxiv.org/abs/1703.04933">arXiv:1703.04933</a></li>
+      <li>G. Shi, Q. Li, W. Zhang, J. Chen, and X.-M. Wu. Recon: Reducing conflicting gradients from the root for multi-task learning. <em>ICLR</em>, 2023. <a href="https://arxiv.org/abs/2302.11289">arXiv:2302.11289</a></li>
+      <li>Z. Wang, Y. Tsvetkov, O. Firat, and Y. Cao. Gradient Vaccine: Investigating and improving multi-task optimization in massively multilingual models. <em>ICLR</em>, 2021. <a href="https://arxiv.org/abs/2010.05874">arXiv:2010.05874</a></li>
+      <li>A. Javaloy and I. Valera. RotoGrad: Gradient homogenization in multitask learning. <em>ICLR</em>, 2022. <a href="https://arxiv.org/abs/2103.02631">arXiv:2103.02631</a></li>
+      <li>J. M. Cohen, S. Kaur, Y. Li, J. Z. Kolter, and A. Talwalkar. Gradient descent on neural networks typically occurs at the edge of stability. <em>ICLR</em>, 2021. <a href="https://arxiv.org/abs/2103.00065">arXiv:2103.00065</a></li>
+    </ol>
+  </div>
+</section>
+
+<section id="cite">
+  <div class="wrap">
+    <p class="kick">Citation</p>
+    <h2>BibTeX</h2>
+<pre><code>@inproceedings{joshi2026gradientconflict,
+  title     = {How Much of ``Gradient Conflict'' Is Due to the Tasks,
+               and How Much to the Coordinates?},
+  author    = {Joshi, Tirth},
+  booktitle = {DeepMath 2026: Conference on the Mathematical Theory
+               of Deep Neural Networks},
+  note      = {Extended abstract, poster},
+  year      = {2026},
+}</code></pre>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Tirth Joshi · Katz School of Science and Health, Yeshiva University ·
+       <a href="mailto:tjoshi1@mail.yu.edu">tjoshi1@mail.yu.edu</a></p>
+    <p><a href="https://github.com/tirth5828/gradient-conflict-gauge">Code</a> (MIT) ·
+       <a href="https://tirth5828.github.io/unlearning-is-not-deletion/">Unlearning Is Not Deletion (ECCV 2026)</a></p>
+  </div>
+</footer>
+
+</body>
+</html>
