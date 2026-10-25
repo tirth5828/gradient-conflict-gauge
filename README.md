@@ -36,13 +36,14 @@ Each script writes the JSON file of the same name in `experiments/` (`conjugatio
 ## Citation
 
 ```bibtex
-@inproceedings{joshi2026gradientconflict,
-  title     = {How Much of ``Gradient Conflict'' Is Due to the Tasks,
-               and How Much to the Coordinates?},
-  author    = {Joshi, Tirth},
-  booktitle = {DeepMath 2026: Conference on the Mathematical Theory
-               of Deep Neural Networks},
-  year      = {2026},
+@misc{joshi2026gradientconflict,
+  title        = {How Much of ``Gradient Conflict'' Is Due to the Tasks,
+                  and How Much to the Coordinates?},
+  author       = {Joshi, Tirth},
+  howpublished = {Poster, DeepMath 2026: Conference on the Mathematical
+                  Theory of Deep Neural Networks, Ohio State University},
+  note         = {Non-archival extended abstract},
+  year         = {2026},
 }
 ```
 
